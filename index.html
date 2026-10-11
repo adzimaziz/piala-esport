@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="ms">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Piala Esport</title>
+<meta name="description" content="4 rekaan piala esport dalam format 3D (.glb) — lihat dan muat turun fail asal.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
+<style>
+  :root {
+    --bg: #f4f2ee;
+    --surface: #ffffff;
+    --stage: #e9e5dd;
+    --text: #1b1a17;
+    --muted: #6b675f;
+    --line: #dcd7cc;
+    --accent: #b8860b;
+    --accent-ink: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e0f12;
+      --surface: #16181d;
+      --stage: #1d2027;
+      --text: #ecebe7;
+      --muted: #9a978f;
+      --line: #2a2d35;
+      --accent: #e0b23c;
+      --accent-ink: #15130d;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e0f12;
+    --surface: #16181d;
+    --stage: #1d2027;
+    --text: #ecebe7;
+    --muted: #9a978f;
+    --line: #2a2d35;
+    --accent: #e0b23c;
+    --accent-ink: #15130d;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: Inter, system-ui, sans-serif;
+    line-height: 1.5;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
+  header { padding: 56px 0 32px; }
+  .eyebrow {
+    font: 600 12px/1 Inter, sans-serif;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  h1 {
+    font-family: Rajdhani, sans-serif;
+    font-weight: 700;
+    font-size: clamp(40px, 7vw, 72px);
+    line-height: 1;
+    margin: 12px 0 16px;
+    letter-spacing: .01em;
+  }
+  header p { color: var(--muted); max-width: 56ch; margin: 0; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 480px), 1fr));
+    gap: 20px;
+    padding-bottom: 48px;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .stage {
+    position: relative;
+    aspect-ratio: 4 / 3;
+    background: radial-gradient(ellipse at 50% 40%, var(--surface), var(--stage) 70%);
+  }
+  .stage model-viewer { width: 100%; height: 100%; --poster-color: transparent; }
+  .placeholder {
+    position: absolute; inset: 0;
+    display: grid; place-items: center; text-align: center;
+    padding: 16px;
+  }
+  .placeholder .num {
+    font-family: Rajdhani, sans-serif; font-weight: 700;
+    font-size: 96px; line-height: 1; color: var(--line);
+  }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    font: 600 14px/1 Inter, sans-serif;
+    padding: 12px 16px; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--surface); color: var(--text);
+    cursor: pointer; text-decoration: none;
+  }
+  .btn:hover { border-color: var(--accent); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .btn svg { width: 16px; height: 16px; }
+  .progress {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 3px;
+    background: transparent;
+  }
+  .progress span { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  .meta {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 16px; border-top: 1px solid var(--line); flex-wrap: wrap;
+  }
+  .meta h2 { font-family: Rajdhani, sans-serif; font-size: 24px; margin: 0; line-height: 1.1; }
+  .meta small { color: var(--muted); font-size: 13px; }
+  .bulk { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 24px; }
+  footer { border-top: 1px solid var(--line); padding: 24px 0 40px; color: var(--muted); font-size: 13px; }
+  footer a { color: inherit; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Rekaan 3D · GLB</div>
+    <h1>Piala Esport</h1>
+    <p>Empat rekaan piala. Tekan <strong>Lihat 3D</strong> untuk pusing dan zoom model, atau terus muat turun fail asal (.glb).</p>
+    <div class="bulk">
+      <button class="btn" id="loadAll">Lihat semua dalam 3D (~250 MB)</button>
+    </div>
+  </header>
+
+  <main class="grid" id="grid"></main>
+</div>
+
+<footer>
+  <div class="wrap">
+    Fail .glb boleh dibuka dalam Blender, Windows 3D Viewer, atau <a href="https://gltf-viewer.donmccurdy.com/" target="_blank" rel="noopener">glTF Viewer</a>.
+  </div>
+</footer>
+
+<script>
+  const MODELS = [
+    { name: "Gold Trophy",   file: "gold trophy 3d model.glb",   mb: 61.7 },
+    { name: "Gaming Trophy", file: "gaming trophy 3d model.glb", mb: 58.4 },
+    { name: "Trophy",        file: "trophy 3d model.glb",        mb: 70.2 },
+    { name: "Trophy 2",      file: "trophy 3d 2 model.glb",      mb: 60.0 },
+  ];
+
+  const dlIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-5-5m5 5l5-5M4 21h16"/></svg>';
+  const grid = document.getElementById("grid");
+
+  MODELS.forEach((m, i) => {
+    const src = encodeURI(m.file);
+    const card = document.createElement("article");
+    card.className = "card";
+    card.innerHTML = `
+      <div class="stage">
+        <div class="placeholder">
+          <div>
+            <div class="num">0${i + 1}</div>
+            <button class="btn view">Lihat 3D · ${m.mb} MB</button>
+          </div>
+        </div>
+        <div class="progress"><span></span></div>
+      </div>
+      <div class="meta">
+        <div>
+          <h2>${m.name}</h2>
+          <small>${m.file} · ${m.mb} MB</small>
+        </div>
+        <a class="btn primary" href="${src}" download="${m.file}">${dlIcon} Muat turun</a>
+      </div>`;
+    card.querySelector(".view").addEventListener("click", () => load(card, src, m.name));
+    grid.appendChild(card);
+  });
+
+  function load(card, src, name) {
+    if (card.dataset.loaded) return;
+    card.dataset.loaded = "1";
+    const stage = card.querySelector(".stage");
+    const bar = card.querySelector(".progress span");
+    const ph = card.querySelector(".placeholder");
+    ph.querySelector(".btn").textContent = "Memuatkan…";
+    const mv = document.createElement("model-viewer");
+    mv.setAttribute("src", src);
+    mv.setAttribute("alt", name);
+    mv.setAttribute("camera-controls", "");
+    mv.setAttribute("auto-rotate", "");
+    mv.setAttribute("shadow-intensity", "1");
+    mv.setAttribute("exposure", "1");
+    mv.setAttribute("environment-image", "neutral");
+    mv.setAttribute("touch-action", "pan-y");
+    mv.addEventListener("progress", e => { bar.style.width = (e.detail.totalProgress * 100) + "%"; });
+    mv.addEventListener("load", () => { ph.remove(); bar.parentElement.remove(); });
+    mv.addEventListener("error", () => { ph.querySelector(".btn").textContent = "Gagal dimuatkan"; });
+    stage.prepend(mv);
+  }
+
+  document.getElementById("loadAll").addEventListener("click", () => {
+    document.querySelectorAll(".card").forEach(c => c.querySelector(".view")?.click());
+  });
+</script>
+</body>
+</html>
