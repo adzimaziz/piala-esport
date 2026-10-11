@@ -117,7 +117,22 @@
   }
   .meta h2 { font-family: Rajdhani, sans-serif; font-size: 24px; margin: 0; line-height: 1.1; }
   .meta small { color: var(--muted); font-size: 13px; }
-  .bulk { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 24px; }
+  .status { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .fs-btn {
+    position: absolute; top: 12px; right: 12px; z-index: 2;
+    width: 40px; height: 40px; padding: 0; border-radius: 10px;
+    background: color-mix(in srgb, var(--surface) 85%, transparent);
+    backdrop-filter: blur(6px);
+  }
+  .fs-btn svg { width: 18px; height: 18px; }
+  .stage:fullscreen { aspect-ratio: auto; width: 100vw; height: 100vh; background: var(--stage); }
+  .stage:-webkit-full-screen { aspect-ratio: auto; width: 100vw; height: 100vh; background: var(--stage); }
+  /* Fallback untuk iPhone (tiada Fullscreen API pada elemen) */
+  .stage.pseudo-fs {
+    position: fixed; inset: 0; z-index: 1000; aspect-ratio: auto;
+    width: 100vw; height: 100dvh; background: var(--stage);
+  }
+  body.no-scroll { overflow: hidden; }
   footer { border-top: 1px solid var(--line); padding: 24px 0 40px; color: var(--muted); font-size: 13px; }
   footer a { color: inherit; }
 </style>
@@ -127,10 +142,7 @@
   <header>
     <div class="eyebrow">Rekaan 3D · GLB</div>
     <h1>Piala Esport</h1>
-    <p>Empat rekaan piala. Tekan <strong>Lihat 3D</strong> untuk pusing dan zoom model, atau terus muat turun fail asal (.glb).</p>
-    <div class="bulk">
-      <button class="btn" id="loadAll">Lihat semua dalam 3D (~250 MB)</button>
-    </div>
+    <p>Empat rekaan piala. Model dimuatkan secara automatik — pusing, zoom, atau tekan butang skrin penuh. Butang <strong>Muat turun</strong> guna fail yang sama yang dah dimuatkan, jadi tak perlu download dua kali. Lawatan seterusnya pun terus buka dari cache.</p>
   </header>
 
   <main class="grid" id="grid"></main>
@@ -149,20 +161,24 @@
     { name: "Trophy",        file: "trophy 3d model.glb",        mb: 70.2 },
     { name: "Trophy 2",      file: "trophy 3d 2 model.glb",      mb: 60.0 },
   ];
+  const CACHE_NAME = "piala-esport-v1";
 
   const dlIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-5-5m5 5l5-5M4 21h16"/></svg>';
+  const fsIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
+  const exitIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>';
   const grid = document.getElementById("grid");
 
-  MODELS.forEach((m, i) => {
+  const cards = MODELS.map((m, i) => {
     const src = encodeURI(m.file);
     const card = document.createElement("article");
     card.className = "card";
     card.innerHTML = `
       <div class="stage">
+        <button class="btn fs-btn" aria-label="Skrin penuh" title="Skrin penuh">${fsIcon}</button>
         <div class="placeholder">
           <div>
             <div class="num">0${i + 1}</div>
-            <button class="btn view">Lihat 3D · ${m.mb} MB</button>
+            <div class="status">Menunggu giliran…</div>
           </div>
         </div>
         <div class="progress"><span></span></div>
@@ -172,36 +188,127 @@
           <h2>${m.name}</h2>
           <small>${m.file} · ${m.mb} MB</small>
         </div>
-        <a class="btn primary" href="${src}" download="${m.file}">${dlIcon} Muat turun</a>
+        <a class="btn primary dl" href="${src}" download="${m.file}">${dlIcon} Muat turun</a>
       </div>`;
-    card.querySelector(".view").addEventListener("click", () => load(card, src, m.name));
+    const stage = card.querySelector(".stage");
+    card.querySelector(".fs-btn").addEventListener("click", () => toggleFullscreen(stage));
     grid.appendChild(card);
+    return { ...m, src, card, stage };
   });
 
-  function load(card, src, name) {
-    if (card.dataset.loaded) return;
-    card.dataset.loaded = "1";
-    const stage = card.querySelector(".stage");
+  // Ambil fail sekali sahaja: dari Cache Storage kalau ada, kalau tak muat turun dengan progress & simpan.
+  async function getBlob(item, onProgress) {
+    let cache = null;
+    try { cache = await caches.open(CACHE_NAME); } catch (e) {}
+    if (cache) {
+      try {
+        const hit = await cache.match(item.src);
+        if (hit) { onProgress(1); return await hit.blob(); }
+      } catch (e) {}
+    }
+    const res = await fetch(item.src);
+    if (!res.ok) throw new Error(res.status);
+    const total = +res.headers.get("content-length") || item.mb * 1e6;
+    const reader = res.body.getReader();
+    const chunks = [];
+    let got = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      got += value.length;
+      onProgress(Math.min(got / total, 1));
+    }
+    const blob = new Blob(chunks, { type: "model/gltf-binary" });
+    if (cache) {
+      try { await cache.put(item.src, new Response(blob, { headers: { "Content-Type": "model/gltf-binary" } })); } catch (e) {}
+    }
+    return blob;
+  }
+
+  async function loadModel(item) {
+    const { card, stage } = item;
     const bar = card.querySelector(".progress span");
-    const ph = card.querySelector(".placeholder");
-    ph.querySelector(".btn").textContent = "Memuatkan…";
+    const status = card.querySelector(".status");
+    status.textContent = "Memuatkan… 0%";
+    let blob;
+    try {
+      blob = await getBlob(item, p => {
+        bar.style.width = (p * 100) + "%";
+        status.textContent = `Memuatkan… ${Math.round(p * 100)}%`;
+      });
+    } catch (e) {
+      status.textContent = "Gagal dimuatkan — butang Muat turun masih berfungsi";
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    // Butang download guna fail yang sama — tiada muat turun kali kedua.
+    card.querySelector(".dl").href = url;
+
     const mv = document.createElement("model-viewer");
-    mv.setAttribute("src", src);
-    mv.setAttribute("alt", name);
+    mv.setAttribute("alt", item.name);
     mv.setAttribute("camera-controls", "");
     mv.setAttribute("auto-rotate", "");
     mv.setAttribute("shadow-intensity", "1");
     mv.setAttribute("exposure", "1");
     mv.setAttribute("environment-image", "neutral");
     mv.setAttribute("touch-action", "pan-y");
-    mv.addEventListener("progress", e => { bar.style.width = (e.detail.totalProgress * 100) + "%"; });
-    mv.addEventListener("load", () => { ph.remove(); bar.parentElement.remove(); });
-    mv.addEventListener("error", () => { ph.querySelector(".btn").textContent = "Gagal dimuatkan"; });
+    status.textContent = "Menyediakan model…";
+    // Giliran seterusnya tak tunggu render; placeholder dibuang bila model siap dipaparkan.
+    // Event "load" kadang-kadang terlepas, jadi semak juga mv.loaded secara berkala.
+    const reveal = () => {
+      clearInterval(poll);
+      card.querySelector(".placeholder")?.remove();
+      card.querySelector(".progress")?.remove();
+    };
+    const poll = setInterval(() => { if (mv.loaded) reveal(); }, 300);
+    mv.addEventListener("load", reveal, { once: true });
+    mv.addEventListener("error", () => { clearInterval(poll); status.textContent = "Gagal dipaparkan"; }, { once: true });
+    mv.setAttribute("src", url);
     stage.prepend(mv);
   }
 
-  document.getElementById("loadAll").addEventListener("click", () => {
-    document.querySelectorAll(".card").forEach(c => c.querySelector(".view")?.click());
+  // Auto muat satu demi satu supaya model pertama keluar cepat.
+  (async () => { for (const item of cards) await loadModel(item); })();
+
+  function isFs(stage) {
+    return document.fullscreenElement === stage || document.webkitFullscreenElement === stage || stage.classList.contains("pseudo-fs");
+  }
+  function setFsIcon(stage, on) {
+    const b = stage.querySelector(".fs-btn");
+    b.innerHTML = on ? exitIcon : fsIcon;
+    b.title = b.ariaLabel = on ? "Keluar skrin penuh" : "Skrin penuh";
+  }
+  function toggleFullscreen(stage) {
+    if (isFs(stage)) {
+      if (stage.classList.contains("pseudo-fs")) {
+        stage.classList.remove("pseudo-fs");
+        document.body.classList.remove("no-scroll");
+        setFsIcon(stage, false);
+      } else {
+        (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      }
+      return;
+    }
+    const pseudo = () => {
+      stage.classList.add("pseudo-fs");
+      document.body.classList.add("no-scroll");
+      setFsIcon(stage, true);
+    };
+    const req = stage.requestFullscreen || stage.webkitRequestFullscreen;
+    if (!req) return pseudo();
+    try {
+      const p = req.call(stage);
+      if (p && p.catch) p.catch(pseudo);
+    } catch (e) { return pseudo(); }
+    // Sesetengah browser terbenam abaikan permintaan tanpa error — guna sandaran lepas seketika.
+    setTimeout(() => { if (!isFs(stage)) pseudo(); }, 800);
+  }
+  ["fullscreenchange", "webkitfullscreenchange"].forEach(ev =>
+    document.addEventListener(ev, () => cards.forEach(c => setFsIcon(c.stage, isFs(c.stage)))));
+  document.addEventListener("keydown", e => {
+    if (e.key !== "Escape") return;
+    document.querySelectorAll(".stage.pseudo-fs").forEach(s => toggleFullscreen(s));
   });
 </script>
 </body>
